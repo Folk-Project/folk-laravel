@@ -1,0 +1,35 @@
+{
+    "name": "folk/laravel",
+    "description": "Laravel integration for Folk application server",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2",
+        "folk/sdk": "@dev",
+        "laravel/framework": "^11.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0",
+        "phpunit/phpunit": "^11.0",
+        "phpstan/phpstan": "^2.0"
+    },
+    "autoload": {
+        "psr-4": { "Folk\\Laravel\\": "src/" }
+    },
+    "autoload-dev": {
+        "psr-4": { "Folk\\Laravel\\Tests\\": "tests/" }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../folk-sdk"
+        }
+    ],
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "extra": {
+        "laravel": {
+            "providers": ["Folk\\Laravel\\FolkServiceProvider"]
+        }
+    }
+}
