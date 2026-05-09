@@ -21,8 +21,8 @@
     },
     "repositories": [
         {
-            "type": "path",
-            "url": "../folk-sdk"
+            "type": "vcs",
+            "url": "https://github.com/Folk-Project/folk-sdk"
         }
     ],
     "minimum-stability": "dev",
