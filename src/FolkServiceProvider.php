@@ -8,13 +8,18 @@ final class FolkServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
-        // Only register when running as a Folk worker
+        // Merge config
+        $this->mergeConfigFrom(__DIR__ . '/../config/folk.php', 'folk');
+
+        // Register Folk queue connector (available even outside Folk workers for dispatch)
+        $this->app->afterResolving('queue', function ($manager): void {
+            $manager->addConnector('folk', fn () => new Queue\FolkConnector());
+        });
+
+        // Only register worker hooks when running as a Folk worker
         if (!getenv('FOLK_RUNTIME')) {
             return;
         }
-
-        // Merge config
-        $this->mergeConfigFrom(__DIR__ . '/../config/folk.php', 'folk');
 
         // Register artisan commands
         if ($this->app->runningInConsole()) {
@@ -23,11 +28,6 @@ final class FolkServiceProvider extends ServiceProvider
                 Console\WorkersCommand::class,
             ]);
         }
-
-        // Register Folk queue connector
-        $this->app->afterResolving('queue', function ($manager): void {
-            $manager->addConnector('folk', fn () => new Queue\FolkConnector());
-        });
 
         // Register boot hook — called before WorkerLoop::run()
         $GLOBALS['folk_worker_boot_hook'] = function (WorkerLoop $loop): void {
