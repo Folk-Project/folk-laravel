@@ -28,6 +28,14 @@ final class FolkServiceProvider extends ServiceProvider
         $GLOBALS['folk_worker_boot_hook'] = function (WorkerLoop $loop): void {
             $app = $this->app;
 
+            // After fork: reconnect DB to avoid sharing parent's PDO handles
+            if (getenv('FOLK_RUNTIME') === 'fork') {
+                $db = $app->make('db');
+                foreach ($db->getConnections() as $connection) {
+                    $connection->reconnect();
+                }
+            }
+
             // HTTP handler
             $loop->registerHttpHandler(new Handler\LaravelHttpHandler($app));
 
@@ -38,9 +46,8 @@ final class FolkServiceProvider extends ServiceProvider
             $loop->registerResetter(new Reset\QueueResetter($app));
         };
 
-        // Fork-mode master boot hook (loads framework into master)
+        // Fork-mode master boot hook (warms OPcache, autoloader, framework state)
         $GLOBALS['folk_master_boot_hook'] = function (): void {
-            // Bootstrap the full application
             $this->app->boot();
         };
     }
