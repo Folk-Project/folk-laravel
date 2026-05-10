@@ -24,6 +24,11 @@ final class FolkServiceProvider extends ServiceProvider
             ]);
         }
 
+        // Register Folk queue connector
+        $this->app->afterResolving('queue', function ($manager): void {
+            $manager->addConnector('folk', fn () => new Queue\FolkConnector());
+        });
+
         // Register boot hook — called before WorkerLoop::run()
         $GLOBALS['folk_worker_boot_hook'] = function (WorkerLoop $loop): void {
             $app = $this->app;
@@ -38,6 +43,9 @@ final class FolkServiceProvider extends ServiceProvider
 
             // HTTP handler
             $loop->registerHttpHandler(new Handler\LaravelHttpHandler($app));
+
+            // Jobs handler
+            $loop->registerJobsHandler(new Queue\FolkJobHandler($app));
 
             // gRPC handler (if services configured)
             $grpcServices = config('folk.grpc.services', []);
