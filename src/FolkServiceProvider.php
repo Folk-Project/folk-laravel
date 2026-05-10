@@ -39,6 +39,16 @@ final class FolkServiceProvider extends ServiceProvider
             // HTTP handler
             $loop->registerHttpHandler(new Handler\LaravelHttpHandler($app));
 
+            // gRPC handler (if services configured)
+            $grpcServices = config('folk.grpc.services', []);
+            if ($grpcServices !== []) {
+                $router = new Grpc\GrpcRouter();
+                foreach ($grpcServices as $name => $class) {
+                    $router->register($name, $app->make($class));
+                }
+                $loop->registerGrpcHandler($router);
+            }
+
             // Resetters — run between requests
             $loop->registerResetter(new Reset\AuthResetter($app));
             $loop->registerResetter(new Reset\DatabaseResetter($app));
