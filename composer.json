@@ -9,8 +9,8 @@
         { "name": "Folk Contributors" }
     ],
     "require": {
-        "php": ">=8.5",
-        "folk/sdk": "@dev",
+        "php": ">=8.2",
+        "folk/sdk": "^0.1",
         "laravel/framework": "^11.0"
     },
     "require-dev": {
