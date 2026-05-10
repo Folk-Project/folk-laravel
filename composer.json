@@ -3,6 +3,11 @@
     "description": "Laravel integration for Folk application server",
     "type": "library",
     "license": "MIT",
+    "homepage": "https://github.com/Folk-Project/folk-laravel",
+    "keywords": ["folk", "php", "laravel", "server"],
+    "authors": [
+        { "name": "Folk Contributors" }
+    ],
     "require": {
         "php": ">=8.5",
         "folk/sdk": "@dev",
