@@ -24,7 +24,7 @@ final class GrpcRouter implements GrpcModeHandler
         $this->services[$serviceName] = $handler;
     }
 
-    public function call(string $service, string $method, string $payload): string
+    public function call(string $service, string $method, string $payload, \Folk\Sdk\Grpc\Context $context): string
     {
         $handler = $this->services[$service]
             ?? throw new \RuntimeException("Unknown gRPC service: {$service}");
@@ -40,14 +40,14 @@ final class GrpcRouter implements GrpcModeHandler
 
         // If last parameter is a protobuf message, use typed dispatch
         if ($lastParam !== null && $this->isProtobufParam($lastParam)) {
-            return $this->callTyped($handler, $method, $payload, $params);
+            return $this->callTyped($handler, $method, $payload, $params, $context);
         }
 
         // Raw bytes mode: method(string $payload): string
         return $handler->$method($payload);
     }
 
-    private function callTyped(object $handler, string $method, string $payload, array $params): string
+    private function callTyped(object $handler, string $method, string $payload, array $params, \Folk\Sdk\Grpc\Context $context): string
     {
         $args = [];
 
@@ -56,14 +56,15 @@ final class GrpcRouter implements GrpcModeHandler
             $typeName = $type instanceof \ReflectionNamedType ? $type->getName() : null;
 
             if ($typeName !== null && is_subclass_of($typeName, \Google\Protobuf\Internal\Message::class)) {
-                // Protobuf message parameter — decode from raw bytes
                 /** @var \Google\Protobuf\Internal\Message $message */
                 $message = new $typeName();
                 $message->mergeFromString($payload);
                 $args[] = $message;
+            } elseif ($typeName === \Folk\Sdk\Grpc\Context::class) {
+                $args[] = $context;
             } else {
-                // Context or other parameter — pass null/empty for now
-                $args[] = null;
+                // RoadRunner ContextInterface or similar — pass our Context
+                $args[] = $context;
             }
         }
 
