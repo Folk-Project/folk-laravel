@@ -20,17 +20,11 @@ final class FolkJobHandler implements JobsModeHandler
 
     public function process(mixed $payload): mixed
     {
-        // Payload is the raw bytes from Redis — a JSON-encoded Laravel job
+        file_put_contents('/tmp/folk-job-debug.txt', date('c') . " process called\n", FILE_APPEND);
         $rawPayload = is_string($payload) ? $payload : (string) $payload;
 
-        $job = new FolkJob(
-            $this->app,
-            $this->app->make('queue')->connection('folk'),
-            $rawPayload,
-            'default',
-        );
-
-        $job->fire();
+        // Write raw payload for debugging
+        file_put_contents('/tmp/folk-job-result.txt', $rawPayload . "\n", FILE_APPEND);
 
         return ['status' => 'ok'];
     }

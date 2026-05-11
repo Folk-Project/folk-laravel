@@ -12,7 +12,6 @@ final class FolkJob extends Job implements JobContract
 {
     public function __construct(
         Container $container,
-        private readonly FolkQueue $folkQueue,
         private readonly string $rawPayload,
         private readonly string $queue,
     ) {
