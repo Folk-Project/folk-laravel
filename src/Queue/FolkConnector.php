@@ -12,7 +12,7 @@ final class FolkConnector implements ConnectorInterface
 {
     public function connect(array $config): Queue
     {
-        $socketPath = $config['rpc_socket'] ?? config('folk.rpc_socket', './tmp/folk-smoke.sock');
+        $socketPath = $config['rpc_socket'] ?? config('folk.rpc_socket', './tmp/folk.sock');
         $queue = $config['queue'] ?? 'default';
 
         return new FolkQueue(
