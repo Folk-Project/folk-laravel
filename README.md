@@ -1,8 +1,6 @@
 # folk-laravel
 
-Laravel adapter for Folk — HTTP handler, state resetters, and Artisan commands.
-
-> **Status:** in active development. See [folk-spec](https://github.com/Folk-Project/folk-spec) for the roadmap.
+Laravel integration for Folk — HTTP handler, jobs queue driver, gRPC router, state resetters, and fork mode support.
 
 ## Requirements
 
@@ -16,103 +14,261 @@ Laravel adapter for Folk — HTTP handler, state resetters, and Artisan commands
 composer require folk/laravel
 ```
 
-The package uses Laravel auto-discovery — no manual provider registration needed.
-
-Publish the configuration:
-
-```bash
-php artisan vendor:publish --tag=folk-config
-```
-
-This creates `config/folk.php`:
-
-```php
-<?php
-
-return [
-    'rpc' => env('FOLK_RPC', 'tcp://127.0.0.1:6001'),
-];
-```
+Auto-discovery registers `FolkServiceProvider` automatically.
 
 ## Quick start
 
-1. Install the package:
-
-```bash
-composer require folk/laravel
-```
-
-2. Set the environment variable to activate the provider:
-
-```env
-FOLK_RUNTIME=1
-```
-
-3. Configure `folk.toml` to point at your Laravel app:
+1. Configure `folk.toml`:
 
 ```toml
+[server]
+runtime = "pipe"
+
 [workers]
 script = "vendor/bin/folk-worker"
 count = 4
+
+[http]
+listen = "0.0.0.0:8080"
 ```
 
-4. Start Folk:
+2. Build and start Folk:
 
 ```bash
-./my-folk serve
+folk-builder build
+./folk-server
 ```
 
-Laravel's HTTP kernel handles all incoming requests automatically.
+All your Laravel routes, middleware, and controllers work out of the box.
 
 ## Configuration
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `folk.rpc` | `String` | `"tcp://127.0.0.1:6001"` | Admin RPC address for Artisan commands. Set via `FOLK_RPC` env var. |
+`config/folk.php`:
 
-## FolkServiceProvider
+```php
+return [
+    // Unix socket for RPC communication (jobs push, admin commands)
+    'rpc_socket' => './tmp/folk.sock',
 
-The provider **only activates when `FOLK_RUNTIME` is set** in the environment. When running via `php artisan serve` or any non-Folk context, the provider returns early and does nothing. This prevents interference with normal Laravel operations.
+    // gRPC service registration
+    'grpc' => [
+        'services' => [
+            // \App\Proto\Greeter\GreeterInterface::class => \App\Grpc\GreeterService::class,
+        ],
+    ],
+];
+```
 
-When active, the provider:
+## HTTP
 
-1. Merges `config/folk.php` into the application config.
-2. Registers Artisan commands (`folk:reload`, `folk:workers`).
-3. Sets up a **worker boot hook** that:
-   - Registers `LaravelHttpHandler` with the `WorkerLoop` (handles `http.handle` RPC calls)
-   - Registers four state resetters that run between every request
+Works automatically. All Laravel routes are served through Folk:
 
-## Artisan commands
+```php
+// routes/web.php — no changes needed
+Route::get('/ping', fn () => response()->json(['status' => 'ok']));
+Route::resource('users', UserController::class);
+```
 
-**`php artisan folk:reload`** — Gracefully recycle all worker processes. Workers finish in-flight requests before restarting.
+State is reset between requests (auth, DB transactions, events, queue) via built-in resetters.
 
-**`php artisan folk:workers`** — Show current worker pool status.
+## Jobs
+
+Folk provides a Laravel Queue driver. Jobs go through Folk's RPC — your app doesn't touch Redis directly.
+
+### Setup
+
+1. Add `folk` connection to `config/queue.php`:
+
+```php
+'connections' => [
+    'folk' => [
+        'driver' => 'folk',
+        'queue' => 'default',
+    ],
+    // ...
+],
+```
+
+2. Set in `.env`:
+
+```env
+QUEUE_CONNECTION=folk
+```
+
+3. Configure queues in `folk.toml`:
+
+```toml
+[jobs]
+driver = "redis"                      # or "memory" for dev
+redis_url = "redis://127.0.0.1:6379"
+
+[[jobs.queues]]
+name = "default"
+concurrency = 4
+
+[[jobs.queues]]
+name = "emails"
+concurrency = 2
+```
+
+### Dispatching
+
+Standard Laravel dispatch — no changes:
+
+```php
+SendEmail::dispatch($user, $subject);
+SendEmail::dispatch($user, $subject)->onQueue('emails');
+```
+
+Flow:
+```
+dispatch() → FolkQueue → RPC (jobs.push) → folk-plugin-jobs → [memory|redis] → PHP worker → fire()
+```
+
+### Job classes
+
+Standard Laravel jobs work out of the box:
+
+```php
+class SendEmail implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable;
+
+    public function __construct(public readonly User $user) {}
+
+    public function handle(Mailer $mailer): void
+    {
+        $mailer->to($this->user->email)->send(new WelcomeMail($this->user));
+    }
+}
+```
+
+## gRPC
+
+Folk routes gRPC calls to PHP handlers with typed protobuf support.
+
+### Setup
+
+1. Define your proto and generate PHP classes:
+
+```bash
+protoc --php_out=app/Proto proto/greeter.proto
+```
+
+2. Create a service interface (or use `protoc-gen-php-grpc`):
+
+```php
+<?php
+namespace App\Proto\Greeter;
+
+use Folk\Sdk\Grpc\ServiceInterface;
+
+interface GreeterInterface extends ServiceInterface
+{
+    public const NAME = "greeter.Greeter";
+
+    public function SayHello(HelloRequest $in): HelloReply;
+}
+```
+
+3. Implement the service:
+
+```php
+<?php
+namespace App\Grpc;
+
+use App\Proto\Greeter\{GreeterInterface, HelloReply, HelloRequest};
+
+class GreeterService implements GreeterInterface
+{
+    public function SayHello(HelloRequest $in): HelloReply
+    {
+        $reply = new HelloReply();
+        $reply->setMessage("Hello, {$in->getName()}!");
+        return $reply;
+    }
+}
+```
+
+4. Register in `config/folk.php`:
+
+```php
+'grpc' => [
+    'services' => [
+        \App\Proto\Greeter\GreeterInterface::class => \App\Grpc\GreeterService::class,
+    ],
+],
+```
+
+5. Enable in `folk.toml`:
+
+```toml
+[grpc]
+listen = "0.0.0.0:50051"
+```
+
+### Metadata (auth tokens, headers)
+
+Add `Context` as the first parameter:
+
+```php
+use Folk\Sdk\Grpc\Context;
+
+class GreeterService implements GreeterInterface
+{
+    public function SayHello(Context $ctx, HelloRequest $in): HelloReply
+    {
+        $token = $ctx->getValue('authorization');
+        $requestId = $ctx->getValue('x-request-id');
+        // ...
+    }
+}
+```
+
+### Spiral/RoadRunner compatibility
+
+Services generated by `protoc-gen-php-grpc` (Spiral) work with Folk:
+
+```php
+'services' => [
+    InfoInterface::class => InfoService::class, // Spiral-generated interface
+],
+```
+
+The `NAME` constant is read from any interface. Context parameters receive Folk's `Context` instance.
+
+## Fork mode
+
+For heavy applications, fork mode boots Laravel once and forks workers from the warm state:
+
+```toml
+[server]
+runtime = "fork"
+```
+
+Benefits:
+- Workers skip framework bootstrap (warm OPcache via copy-on-write)
+- DB connections are automatically reconnected after fork
+
+Requires: `ext-pcntl`, `ext-sockets`.
 
 ## State resetters
 
-Long-lived workers accumulate state between requests. The package registers four resetters that clean up after each request:
+Between every request, these resetters clean up shared state:
 
 | Resetter | What it does |
 |----------|-------------|
-| `AuthResetter` | Calls `forgetUser()` on all auth guards. |
-| `DatabaseResetter` | Rolls back any open database transactions. |
-| `EventResetter` | Clears request-scoped event listeners. |
-| `QueueResetter` | Reconnects queue connections to prevent stale handles. |
+| `AuthResetter` | Forgets authenticated user on all guards |
+| `DatabaseResetter` | Rolls back open transactions |
+| `EventResetter` | Clears request-scoped listeners |
+| `QueueResetter` | Reconnects queue connections |
 
-## How it works
+## Artisan commands
 
-When Folk starts a PHP worker with `FOLK_RUNTIME=1`:
-
-1. Laravel boots normally via the service provider.
-2. The worker boot hook registers `LaravelHttpHandler` with `folk-sdk`'s `WorkerLoop`.
-3. For each incoming HTTP request:
-   - Folk sends an `http.handle` RPC call with the serialized request.
-   - `LaravelHttpHandler` converts it to a Symfony `Request`.
-   - The request passes through Laravel's HTTP kernel.
-   - The response is converted back and returned to Folk.
-4. After each request, all resetters run to clean up auth state, database transactions, event listeners, and queue connections.
-
-For fork runtime mode, a **master boot hook** bootstraps the full Laravel application once. Forked workers inherit the warm application state.
+| Command | Description |
+|---------|-------------|
+| `folk:reload` | Gracefully recycle all workers |
+| `folk:workers` | Show worker pool status |
 
 ## License
 
