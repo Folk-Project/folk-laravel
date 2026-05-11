@@ -10,13 +10,17 @@ use Illuminate\Queue\Jobs\Job;
 
 final class FolkJob extends Job implements JobContract
 {
+    private string $rawPayload;
+
     public function __construct(
         Container $container,
-        private readonly string $rawPayload,
-        private readonly string $queue,
+        string $rawPayload,
+        string $queue,
     ) {
         $this->container = $container;
         $this->connectionName = 'folk';
+        $this->rawPayload = $rawPayload;
+        $this->queue = $queue;
     }
 
     public function getJobId(): string
@@ -32,10 +36,5 @@ final class FolkJob extends Job implements JobContract
     public function attempts(): int
     {
         return ($this->payload()['attempts'] ?? 0) + 1;
-    }
-
-    public function getQueue(): string
-    {
-        return $this->queue;
     }
 }

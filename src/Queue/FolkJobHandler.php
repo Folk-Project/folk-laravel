@@ -20,11 +20,15 @@ final class FolkJobHandler implements JobsModeHandler
 
     public function process(mixed $payload): mixed
     {
-        file_put_contents('/tmp/folk-job-debug.txt', date('c') . " process called\n", FILE_APPEND);
         $rawPayload = is_string($payload) ? $payload : (string) $payload;
 
-        // Write raw payload for debugging
-        file_put_contents('/tmp/folk-job-result.txt', $rawPayload . "\n", FILE_APPEND);
+        $job = new FolkJob(
+            $this->app,
+            $rawPayload,
+            'default',
+        );
+
+        $job->fire();
 
         return ['status' => 'ok'];
     }
