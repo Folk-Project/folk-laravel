@@ -41,7 +41,74 @@ folk-builder build
 
 All your Laravel routes, middleware, and controllers work out of the box.
 
-## Configuration
+## Full `folk.toml` reference
+
+```toml
+# --- Server ---
+[server]
+runtime = "pipe"              # "pipe" or "fork" (fork requires ext-pcntl + ext-sockets)
+rpc_socket = "./tmp/folk.sock" # Unix socket for admin RPC (jobs push, artisan commands)
+shutdown_timeout = "30s"       # Grace period after SIGTERM before force-kill
+
+# --- Workers ---
+[workers]
+script = "vendor/bin/folk-worker"  # PHP worker entry point
+php = "php"                        # Path to PHP binary
+count = 4                          # Number of worker processes
+max_jobs = 1000                    # Recycle worker after N requests
+ttl = "1h"                         # Recycle worker after this duration
+max_memory_mb = 256                # Recycle worker exceeding this RSS (MB)
+exec_timeout = "30s"               # Per-request execution timeout
+boot_timeout = "30s"               # Max time to wait for worker boot
+
+# --- HTTP plugin ---
+[http]
+listen = "0.0.0.0:8080"       # Address and port
+read_timeout = "10s"           # Max time to read request body
+write_timeout = "30s"          # Max time to write response
+
+# --- Jobs plugin ---
+[jobs]
+driver = "redis"                       # "memory" (dev only) or "redis"
+redis_url = "redis://127.0.0.1:6379"   # Redis connection (redis driver only)
+
+[[jobs.queues]]
+name = "default"               # Queue name
+concurrency = 4                # Concurrent consumers for this queue
+max_retries = 3                # Max retry attempts before discarding
+
+[[jobs.queues]]
+name = "emails"
+concurrency = 2
+
+# --- gRPC plugin ---
+[grpc]
+listen = "0.0.0.0:50051"      # Address and port for gRPC server
+reflection = true              # Enable gRPC server reflection (grpcurl without -proto)
+
+# --- Metrics plugin ---
+[metrics]
+listen = "0.0.0.0:9090"       # Address for /metrics and /health endpoints
+
+# --- Process supervisor plugin ---
+[[process]]
+name = "vite"
+command = "npx vite"
+restart = "always"             # "always", "on_failure", "never"
+max_restarts = 5
+restart_delay = "1s"
+
+# --- Logging ---
+[log]
+filter = "info"                # Log level: "debug", "info", "warn", "error"
+format = "json"                # "text", "json", "pretty"
+```
+
+Duration format: `"500ms"`, `"10s"`, `"5m"`, `"1h"`.
+
+Environment variable overrides: prefix with `FOLK_`, e.g. `FOLK_WORKERS_COUNT=8`.
+
+## Laravel configuration
 
 `config/folk.php`:
 
