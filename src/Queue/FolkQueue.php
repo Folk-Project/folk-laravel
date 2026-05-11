@@ -4,69 +4,62 @@ declare(strict_types=1);
 
 namespace Folk\Laravel\Queue;
 
+use Folk\Sdk\Rpc\RpcClient;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
 use Illuminate\Queue\Queue;
-use Illuminate\Redis\Connections\Connection;
 
 /**
- * Laravel Queue driver that pushes jobs to Redis lists consumed by folk-plugin-jobs.
+ * Laravel Queue driver that pushes jobs via Folk RPC.
  *
- * Jobs are serialized as JSON and RPUSH'd to a Redis key matching the queue name.
- * folk-plugin-jobs uses BLPOP on the same key to consume jobs.
+ * Jobs are serialized by Laravel and pushed to Folk's job system
+ * via the admin RPC socket. Folk decides the storage backend
+ * (memory, Redis, etc.) transparently.
  */
 final class FolkQueue extends Queue implements QueueContract
 {
     public function __construct(
-        private readonly Connection $redis,
+        private readonly RpcClient $rpc,
         private readonly string $defaultQueue = 'default',
     ) {}
 
     public function size($queue = null): int
     {
-        return (int) $this->redis->llen($this->getQueue($queue));
+        // TODO: implement via jobs.stats RPC
+        return 0;
     }
 
     public function push($job, $data = '', $queue = null): mixed
     {
         $payload = $this->createPayload($job, $this->getQueue($queue), $data);
 
-        return $this->redis->rpush($this->getQueue($queue), $payload);
+        $this->rpc->call('jobs.push', [
+            'queue' => $this->getQueue($queue),
+            'payload' => $payload,
+        ]);
+
+        return null;
     }
 
     public function pushRaw($payload, $queue = null, array $options = []): mixed
     {
-        return $this->redis->rpush($this->getQueue($queue), $payload);
+        $this->rpc->call('jobs.push', [
+            'queue' => $this->getQueue($queue),
+            'payload' => $payload,
+        ]);
+
+        return null;
     }
 
     public function later($delay, $job, $data = '', $queue = null): mixed
     {
-        // Delayed jobs: use Redis sorted set with score = timestamp
-        $payload = $this->createPayload($job, $this->getQueue($queue), $data);
-        $delay = $this->secondsUntil($delay);
-
-        return $this->redis->zadd(
-            $this->getQueue($queue) . ':delayed',
-            $this->currentTime() + $delay,
-            $payload,
-        );
+        // Delayed jobs not yet supported — push immediately
+        return $this->push($job, $data, $queue);
     }
 
     public function pop($queue = null): ?FolkJob
     {
         // Pop is handled by folk-plugin-jobs (Rust side), not by PHP.
-        // This method exists for interface compliance but is not normally called.
-        $payload = $this->redis->lpop($this->getQueue($queue));
-
-        if ($payload === null) {
-            return null;
-        }
-
-        return new FolkJob(
-            $this->container,
-            $this,
-            (string) $payload,
-            $this->getQueue($queue),
-        );
+        return null;
     }
 
     public function getQueue(?string $queue): string

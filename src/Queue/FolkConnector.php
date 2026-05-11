@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Folk\Laravel\Queue;
 
+use Folk\Sdk\Rpc\RpcClient;
 use Illuminate\Queue\Connectors\ConnectorInterface;
 use Illuminate\Contracts\Queue\Queue;
 
@@ -11,11 +12,11 @@ final class FolkConnector implements ConnectorInterface
 {
     public function connect(array $config): Queue
     {
-        $redis = $config['redis_connection'] ?? 'default';
+        $socketPath = $config['rpc_socket'] ?? config('folk.rpc_socket', './tmp/folk-smoke.sock');
         $queue = $config['queue'] ?? 'default';
 
         return new FolkQueue(
-            app('redis')->connection($redis),
+            new RpcClient($socketPath),
             $queue,
         );
     }
