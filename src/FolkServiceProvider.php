@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 namespace Folk\Laravel;
 
-use Folk\Sdk\Worker\WorkerLoop;
+use Folk\Sdk\Worker\HandlerLoop;
 use Illuminate\Support\ServiceProvider;
 
 final class FolkServiceProvider extends ServiceProvider
@@ -30,7 +30,7 @@ final class FolkServiceProvider extends ServiceProvider
         }
 
         // Register boot hook — called before WorkerLoop::run()
-        $GLOBALS['folk_worker_boot_hook'] = function (WorkerLoop $loop): void {
+        $GLOBALS['folk_worker_boot_hook'] = function (HandlerLoop $loop): void {
             $app = $this->app;
 
             // After fork: reconnect DB to avoid sharing parent's PDO handles
