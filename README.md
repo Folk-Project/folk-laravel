@@ -84,7 +84,7 @@ concurrency = 2
 # --- gRPC plugin ---
 [grpc]
 listen = "0.0.0.0:50051"      # Address and port for gRPC server
-reflection = true              # Enable gRPC server reflection (grpcurl without -proto)
+proto = ["./proto/service.proto"]  # Proto files for gRPC reflection (auto-resolves imports)
 
 # --- Metrics plugin ---
 [metrics]
