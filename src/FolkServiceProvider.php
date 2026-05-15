@@ -17,7 +17,7 @@ final class FolkServiceProvider extends ServiceProvider
         });
 
         // Only register worker hooks when running as a Folk worker
-        if (!getenv('FOLK_RUNTIME')) {
+        if (!getenv('FOLK_RUNTIME') && !function_exists('folk_worker_recv')) {
             return;
         }
 
