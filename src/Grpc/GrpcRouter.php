@@ -47,6 +47,7 @@ final class GrpcRouter implements GrpcModeHandler
         return $handler->$method($payload);
     }
 
+    /** @param list<\ReflectionParameter> $params */
     private function callTyped(object $handler, string $method, string $payload, array $params, \Folk\Sdk\Grpc\Context $context): string
     {
         $args = [];

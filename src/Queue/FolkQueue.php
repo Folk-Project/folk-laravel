@@ -32,6 +32,7 @@ final class FolkQueue extends Queue implements QueueContract
         return null;
     }
 
+    /** @param array<string, mixed> $options */
     public function pushRaw($payload, $queue = null, array $options = []): mixed
     {
         $this->pushToFolk($this->getQueue($queue), $payload);

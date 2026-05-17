@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\Queue;
 
 final class FolkConnector implements ConnectorInterface
 {
+    /** @param array<string, mixed> $config */
     public function connect(array $config): Queue
     {
         $queue = $config['queue'] ?? 'default';

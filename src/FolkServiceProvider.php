@@ -45,7 +45,7 @@ final class FolkServiceProvider extends ServiceProvider
             $loop->registerHttpHandler(new Handler\LaravelHttpHandler($app));
 
             // Jobs handler
-            $loop->registerJobsHandler(new Queue\FolkJobHandler($app));
+            $loop->registerJobsHandler(new Queue\FolkJobHandler());
 
             // gRPC handler (if services configured)
             $grpcServices = config('folk.grpc.services', []);
