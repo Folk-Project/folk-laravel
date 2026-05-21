@@ -56,9 +56,9 @@ final class FolkQueue extends Queue implements QueueContract
 
     private function pushToFolk(string $queue, string $payload): void
     {
-        \folk_call('jobs.push', \msgpack_pack([
+        \folk_call('jobs.push', json_encode([
             'queue' => $queue,
             'payload' => $payload,
-        ]));
+        ], JSON_THROW_ON_ERROR));
     }
 }

@@ -16,7 +16,10 @@ final class FolkJobHandler implements JobsModeHandler
 
     public function process(mixed $payload): mixed
     {
-        $rawPayload = is_string($payload) ? $payload : (string) $payload;
+        // Rust jobs plugin sends {payload: "..."} wrapper object
+        $rawPayload = is_array($payload) && isset($payload['payload'])
+            ? $payload['payload']
+            : (is_string($payload) ? $payload : (string) $payload);
 
         $job = new FolkJob(
             \Illuminate\Container\Container::getInstance(),
