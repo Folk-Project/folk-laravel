@@ -1,6 +1,7 @@
 <?php declare(strict_types=1);
 namespace Folk\Laravel;
 
+use Folk\Sdk\Grpc\GrpcRouter;
 use Folk\Sdk\Worker\HandlerLoop;
 use Illuminate\Support\ServiceProvider;
 
@@ -17,7 +18,7 @@ final class FolkServiceProvider extends ServiceProvider
         });
 
         // Only register worker hooks when running as a Folk worker
-        if (!getenv('FOLK_RUNTIME') && !function_exists('folk_worker_recv')) {
+        if (!function_exists('folk_worker_run')) {
             return;
         }
 
@@ -33,14 +34,6 @@ final class FolkServiceProvider extends ServiceProvider
         $GLOBALS['folk_worker_boot_hook'] = function (HandlerLoop $loop): void {
             $app = $this->app;
 
-            // After fork: reconnect DB to avoid sharing parent's PDO handles
-            if (getenv('FOLK_RUNTIME') === 'fork') {
-                $db = $app->make('db');
-                foreach ($db->getConnections() as $connection) {
-                    $connection->reconnect();
-                }
-            }
-
             // HTTP handler
             $loop->registerHttpHandler(new Handler\LaravelHttpHandler($app));
 
@@ -50,7 +43,7 @@ final class FolkServiceProvider extends ServiceProvider
             // gRPC handler (if services configured)
             $grpcServices = config('folk.grpc.services', []);
             if ($grpcServices !== []) {
-                $router = new Grpc\GrpcRouter();
+                $router = new GrpcRouter();
                 foreach ($grpcServices as $name => $class) {
                     $router->register($name, $app->make($class));
                 }
@@ -62,11 +55,6 @@ final class FolkServiceProvider extends ServiceProvider
             $loop->registerResetter(new Reset\DatabaseResetter($app));
             $loop->registerResetter(new Reset\EventResetter($app));
             $loop->registerResetter(new Reset\QueueResetter($app));
-        };
-
-        // Fork-mode master boot hook (warms OPcache, autoloader, framework state)
-        $GLOBALS['folk_master_boot_hook'] = function (): void {
-            $this->app->boot();
         };
     }
 }
