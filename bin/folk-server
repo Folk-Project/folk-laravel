@@ -1,4 +1,3 @@
-#!/usr/bin/env php
 <?php
 /**
  * Folk server entry point for Laravel (extension mode).
@@ -33,7 +32,9 @@ if (!folk_is_worker_thread()) {
 }
 
 // Bootstrap Laravel (registers handlers via service provider).
-$app = require getcwd() . '/bootstrap/app.php';
+// Derive project root from autoload path (works in ZTS where getcwd may differ)
+$projectRoot = dirname($autoload, 2);
+$app = require $projectRoot . '/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 // Create the worker loop and register handlers.
