@@ -16,7 +16,6 @@ jobs:
       - name: Check PHP version and extensions
         run: |
           php --version
-          php -m | grep msgpack || (echo "ERROR: msgpack not installed" && exit 1)
           php -m | grep pcntl  || (echo "ERROR: pcntl not installed" && exit 1)
 
       - name: Install Composer dependencies
