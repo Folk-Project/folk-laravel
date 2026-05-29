@@ -32,6 +32,7 @@
     ],
     "minimum-stability": "dev",
     "prefer-stable": true,
+    "bin": ["bin/folk-server"],
     "extra": {
         "laravel": {
             "providers": ["Folk\\Laravel\\FolkServiceProvider"]
