@@ -34,6 +34,17 @@ final class FolkServiceProvider extends ServiceProvider
         $GLOBALS['folk_worker_boot_hook'] = function (HandlerLoop $loop): void {
             $app = $this->app;
 
+            // Stamp request_id onto application logs for correlation with Folk's
+            // Rust-side access log. Pushed onto the default channel's Monolog
+            // logger; reads the id at log time, so nothing to reset between requests.
+            $channel = $app->make(\Illuminate\Log\LogManager::class)->channel();
+            if ($channel instanceof \Illuminate\Log\Logger) {
+                $monolog = $channel->getLogger();
+                if ($monolog instanceof \Monolog\Logger) {
+                    $monolog->pushProcessor(new Log\FolkRequestIdProcessor());
+                }
+            }
+
             // HTTP handler
             $loop->registerHttpHandler(new Handler\LaravelHttpHandler($app));
 
