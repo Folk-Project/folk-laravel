@@ -12,4 +12,21 @@ return [
         // 'helloworld.Greeter' => App\Grpc\GreeterService::class,
         'services' => [],
     ],
+
+    // Request body streaming.
+    //
+    // Streaming itself is enabled in folk.toml via `[http] stream_request_body`
+    // + `stream_request_body_paths`. These options only cap the size of a
+    // streamed body on the PHP side, since `max_request_size` is not enforced
+    // for streamed paths.
+    'streaming' => [
+        // Default limit (bytes) for any streamed request body. 0 = unlimited.
+        'max_request_bytes' => (int) env('FOLK_STREAM_MAX_BYTES', 0),
+
+        // Optional per-path limits, matched against the request path. A pattern
+        // ending in `*` is a prefix match; otherwise it matches exactly.
+        // Example:
+        // '/api/files/*' => 1073741824, // 1 GiB
+        'limits' => [],
+    ],
 ];

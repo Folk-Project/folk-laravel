@@ -46,7 +46,11 @@ final class FolkServiceProvider extends ServiceProvider
             }
 
             // HTTP handler
-            $loop->registerHttpHandler(new Handler\LaravelHttpHandler($app));
+            $loop->registerHttpHandler(new Handler\LaravelHttpHandler(
+                $app,
+                (int) config('folk.streaming.max_request_bytes', 0),
+                (array) config('folk.streaming.limits', []),
+            ));
 
             // Jobs handler
             $loop->registerJobsHandler(new Queue\FolkJobHandler());
@@ -66,6 +70,7 @@ final class FolkServiceProvider extends ServiceProvider
             $loop->registerResetter(new Reset\DatabaseResetter($app));
             $loop->registerResetter(new Reset\EventResetter($app));
             $loop->registerResetter(new Reset\QueueResetter($app));
+            $loop->registerResetter(new \Folk\Sdk\Reset\TempUploadResetter());
         };
     }
 }
