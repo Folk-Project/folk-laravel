@@ -75,7 +75,9 @@ final class LaravelHttpHandler implements HttpModeHandler
         // Symfony Request::create() seeds the POST bag from $parameters and does
         // NOT parse a urlencoded body itself, so HTML form posts must be parsed
         // here. Multipart fields already arrive parsed in $streamed->post.
-        $parameters = $streamed?->post ?? $this->parseFormBody($folkRequest, $content);
+        $parameters = $streamed !== null
+            ? $streamed->post
+            : $this->parseFormBody($folkRequest, $content);
         $files = [];
         if ($streamed !== null) {
             foreach ($streamed->files as $file) {
@@ -141,7 +143,7 @@ final class LaravelHttpHandler implements HttpModeHandler
      * Parse a urlencoded request body into POST parameters. Symfony's
      * Request::create() does not do this; returns [] for non-form bodies.
      *
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     private function parseFormBody(FolkRequest $folkRequest, ?string $content): array
     {
