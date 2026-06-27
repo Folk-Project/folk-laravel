@@ -41,7 +41,9 @@ final class FolkQueue extends Queue implements QueueContract
 
     public function later($delay, $job, $data = '', $queue = null): mixed
     {
-        return $this->push($job, $data, $queue);
+        $payload = $this->createPayload($job, $this->getQueue($queue), $data);
+        $this->pushToFolk($this->getQueue($queue), $payload, $this->secondsUntil($delay));
+        return null;
     }
 
     public function pop($queue = null): ?FolkJob
@@ -54,11 +56,12 @@ final class FolkQueue extends Queue implements QueueContract
         return $queue ?: $this->defaultQueue;
     }
 
-    private function pushToFolk(string $queue, string $payload): void
+    private function pushToFolk(string $queue, string $payload, int $delay = 0): void
     {
         \folk_call('jobs.push', json_encode([
             'queue' => $queue,
             'payload' => $payload,
+            'delay' => $delay,
         ], JSON_THROW_ON_ERROR));
     }
 }
