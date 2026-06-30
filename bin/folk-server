@@ -1,9 +1,11 @@
 <?php
 /**
- * Folk server entry point for Laravel (extension mode).
+ * Folk server entry point for Laravel (extension mode, fork-after-warm).
  *
- * Main thread: starts server + enters worker loop.
- * ZTS worker threads: skip server start (bridge state already initialized).
+ * The master process bootstraps Laravel once and registers handlers, then
+ * Folk\Server::serveForked() forks N worker processes (each inheriting the
+ * warm interpreter via copy-on-write) and supervises them. There are no PHP
+ * worker threads anymore — every worker is its own process.
  */
 
 declare(strict_types=1);
@@ -18,7 +20,7 @@ if (!file_exists($autoload)) {
 
 require $autoload;
 
-// Ensure CWD is project root (ZTS workers may inherit vendor/bin/ as CWD)
+// Ensure CWD is the project root before bootstrapping / forking.
 $projectRoot = dirname($autoload, 2);
 chdir($projectRoot);
 
@@ -29,15 +31,7 @@ if (!function_exists('folk_version')) {
     exit(1);
 }
 
-// ZTS worker threads already have bridge state; skip server start.
-if (!folk_is_worker_thread()) {
-    $server = new Folk\Server($configPath);
-    $server->start();
-}
-
-// Bootstrap Laravel (registers handlers via service provider).
-// Derive project root from autoload path (works in ZTS where getcwd may differ)
-$projectRoot = dirname($autoload, 2);
+// Bootstrap Laravel once in the master (registers handlers via service provider).
 $app = require $projectRoot . '/bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
@@ -48,4 +42,6 @@ if (isset($GLOBALS['folk_worker_boot_hook'])) {
     ($GLOBALS['folk_worker_boot_hook'])($loop);
 }
 
-$loop->run();
+// Fork-after-warm: install the dispatch fn, then fork workers + supervise.
+$server = new Folk\Server($configPath);
+$server->serveForked($loop->prepareDispatch());
