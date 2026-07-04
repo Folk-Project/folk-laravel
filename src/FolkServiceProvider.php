@@ -2,7 +2,9 @@
 namespace Folk\Laravel;
 
 use Folk\Sdk\Grpc\GrpcRouter;
+use Folk\Sdk\Reset\ResettableInterface;
 use Folk\Sdk\Worker\HandlerLoop;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 
 final class FolkServiceProvider extends ServiceProvider
@@ -65,12 +67,52 @@ final class FolkServiceProvider extends ServiceProvider
                 $loop->registerGrpcHandler($router);
             }
 
-            // Resetters — run between requests
-            $loop->registerResetter(new Reset\AuthResetter($app));
-            $loop->registerResetter(new Reset\DatabaseResetter($app));
-            $loop->registerResetter(new Reset\EventResetter($app));
-            $loop->registerResetter(new Reset\QueueResetter($app));
-            $loop->registerResetter(new \Folk\Sdk\Reset\TempUploadResetter());
+            // Resetters — run between requests. Built-in + app-registered.
+            foreach (self::resetters($app) as $resetter) {
+                $loop->registerResetter($resetter);
+            }
         };
+    }
+
+    /**
+     * The per-request resetters registered for a Folk worker: the built-in set
+     * plus any classes listed in `config('folk.resetters')`.
+     *
+     * `ScopedResetter` flushes the container's scoped instances and
+     * `InertiaResetter` flushes Inertia's shared props — the Octane-parity
+     * fixes that stop a persistent worker replaying the first request's state.
+     *
+     * @return list<ResettableInterface>
+     */
+    public static function resetters(Application $app): array
+    {
+        $resetters = [
+            new Reset\AuthResetter($app),
+            new Reset\DatabaseResetter($app),
+            new Reset\EventResetter($app),
+            new Reset\QueueResetter($app),
+            new \Folk\Sdk\Reset\TempUploadResetter(),
+            new Reset\ScopedResetter($app),
+            new Reset\InertiaResetter($app),
+        ];
+
+        foreach ((array) config('folk.resetters', []) as $class) {
+            if (!is_string($class) || $class === '') {
+                continue;
+            }
+            try {
+                $resetter = $app->make($class);
+            } catch (\Throwable $e) {
+                error_log("Folk: cannot resolve resetter {$class}: " . $e->getMessage());
+                continue;
+            }
+            if ($resetter instanceof ResettableInterface) {
+                $resetters[] = $resetter;
+            } else {
+                error_log("Folk: resetter {$class} must implement " . ResettableInterface::class);
+            }
+        }
+
+        return $resetters;
     }
 }

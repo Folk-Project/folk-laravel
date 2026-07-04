@@ -29,4 +29,20 @@ return [
         // '/api/files/*' => 1073741824, // 1 GiB
         'limits' => [],
     ],
+
+    // Application-registered per-request resetters.
+    //
+    // Folk keeps the application booted across requests (Octane-style), so any
+    // singleton/scoped state you mutate during a request must be reset before
+    // the next one. Folk already resets auth, database transactions, events,
+    // queue, temp uploads, the container's scoped instances, and Inertia's
+    // shared props. Register additional resetters here to clear your own
+    // package/app state. Each class must implement
+    // \Folk\Sdk\Reset\ResettableInterface and is resolved from the container.
+    //
+    // Example:
+    // 'resetters' => [
+    //     App\Folk\MyStateResetter::class,
+    // ],
+    'resetters' => [],
 ];
