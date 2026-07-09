@@ -10,11 +10,19 @@ final class AuthResetter implements ResettableInterface
 
     public function reset(): void
     {
-        $auth = $this->app->make('auth');
-        foreach (array_keys(config('auth.guards', [])) as $guard) {
-            try {
-                $auth->guard($guard)->forgetUser();
-            } catch (\Throwable) {}
+        // forgetGuards() drops every resolved guard so the next request rebuilds
+        // them from scratch. Per-guard forgetUser() only nulls the cached user and
+        // leaves `loggedOut` / `recallAttempted` set on the warm guard, so a logout
+        // or a stale flag would leak into the next request (folk-releases #86). This
+        // also covers custom guards not listed in `config('auth.guards')`.
+        if (!$this->app->bound('auth')) {
+            return;
         }
+        try {
+            $auth = $this->app->make('auth');
+            if (is_object($auth) && method_exists($auth, 'forgetGuards')) {
+                $auth->forgetGuards();
+            }
+        } catch (\Throwable) {}
     }
 }

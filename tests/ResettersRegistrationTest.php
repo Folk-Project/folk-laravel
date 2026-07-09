@@ -31,8 +31,24 @@ class ResettersRegistrationTest extends TestCase
 
         $this->assertContains(\Folk\Laravel\Reset\ScopedResetter::class, $classes);
         $this->assertContains(\Folk\Laravel\Reset\InertiaResetter::class, $classes);
+        $this->assertContains(\Folk\Laravel\Reset\SessionResetter::class, $classes);
         $this->assertContains(\Folk\Laravel\Reset\AuthResetter::class, $classes);
         $this->assertContains(\Folk\Sdk\Reset\TempUploadResetter::class, $classes);
+    }
+
+    public function test_session_resetter_runs_before_auth_resetter(): void
+    {
+        $classes = array_map(
+            static fn (ResettableInterface $r): string => $r::class,
+            FolkServiceProvider::resetters($this->app),
+        );
+
+        $session = array_search(\Folk\Laravel\Reset\SessionResetter::class, $classes, true);
+        $auth = array_search(\Folk\Laravel\Reset\AuthResetter::class, $classes, true);
+
+        $this->assertNotFalse($session);
+        $this->assertNotFalse($auth);
+        $this->assertLessThan($auth, $session, 'session must be flushed before guards are dropped');
     }
 
     public function test_app_resetter_from_config_is_registered(): void

@@ -81,12 +81,17 @@ final class FolkServiceProvider extends ServiceProvider
      * `ScopedResetter` flushes the container's scoped instances and
      * `InertiaResetter` flushes Inertia's shared props — the Octane-parity
      * fixes that stop a persistent worker replaying the first request's state.
+     * `SessionResetter` flushes the cached session store and `AuthResetter`
+     * drops resolved guards so auth/session state can't leak between requests
+     * (folk-releases #86); Session runs before Auth so the guard is dropped
+     * against an already-cleared store.
      *
      * @return list<ResettableInterface>
      */
     public static function resetters(Application $app): array
     {
         $resetters = [
+            new Reset\SessionResetter($app),
             new Reset\AuthResetter($app),
             new Reset\DatabaseResetter($app),
             new Reset\EventResetter($app),

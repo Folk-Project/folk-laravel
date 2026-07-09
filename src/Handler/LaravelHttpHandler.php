@@ -98,6 +98,7 @@ final class LaravelHttpHandler implements HttpModeHandler
             uri:        $folkRequest->uri,
             method:     $folkRequest->method,
             parameters: $parameters,
+            cookies:    \Folk\Sdk\Http\CookieParser::fromHeaders($folkRequest->headers),
             files:      $files,
             server:     $this->buildServerBag($folkRequest->headers),
             content:    $streamed !== null ? null : ($content ?? ''),
@@ -203,12 +204,27 @@ final class LaravelHttpHandler implements HttpModeHandler
         return $server;
     }
 
-    /** @return array<string, string> */
+    /**
+     * @return array<string, string|list<string>>
+     */
     private function extractHeaders(SymfonyResponse $response): array
     {
         $headers = [];
         foreach ($response->headers->all() as $name => $values) {
-            $headers[$name] = implode(', ', $values);
+            // Set-Cookie must stay a list — one header per cookie. Comma-joining
+            // corrupts cookies (an Expires date contains a comma) and the HTTP
+            // plugin now emits each list entry as its own header (#86).
+            if (strcasecmp((string) $name, 'set-cookie') === 0) {
+                $cookies = [];
+                foreach ($values as $cookie) {
+                    if ($cookie !== null) {
+                        $cookies[] = $cookie;
+                    }
+                }
+                $headers[$name] = $cookies;
+            } else {
+                $headers[$name] = implode(', ', $values);
+            }
         }
         return $headers;
     }
