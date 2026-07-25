@@ -5,12 +5,26 @@ return [
 
     'grpc' => [
         // Map gRPC service names to handler classes.
-        // Each handler class must have methods matching the gRPC method names,
-        // accepting raw protobuf bytes and returning raw protobuf bytes.
+        //
+        // With transcoding on (`[grpc] transcode = true` in folk.toml) each
+        // handler implements the generated `*Interface` and works with typed
+        // DTOs. In passthrough mode (default) handlers accept and return raw
+        // protobuf bytes.
         //
         // Example:
         // 'helloworld.Greeter' => App\Grpc\GreeterService::class,
         'services' => [],
+
+        // --- Code generation (php artisan folk:grpc:generate) ---
+        //
+        // .proto files to generate DTOs/interfaces from. Also accepted as CLI
+        // arguments, which override this list.
+        'proto' => [],
+
+        // Where generated code is written, and its PHP namespace. null =
+        // app_path('Grpc/Generated') with the App\Grpc\Generated namespace.
+        'generated_dir' => null,
+        'generated_namespace' => 'App\\Grpc\\Generated',
     ],
 
     // Request body streaming.

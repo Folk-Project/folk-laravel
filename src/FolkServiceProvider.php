@@ -19,12 +19,18 @@ final class FolkServiceProvider extends ServiceProvider
             $manager->addConnector('folk', fn () => new Queue\FolkConnector());
         });
 
+        // Code generation is a build-time tool — available in any `php artisan`
+        // run, not only inside a Folk worker process.
+        if ($this->app->runningInConsole()) {
+            $this->commands([Console\GenerateGrpcCommand::class]);
+        }
+
         // Only register worker hooks when running as a Folk worker
         if (!function_exists('folk_worker_run')) {
             return;
         }
 
-        // Register artisan commands
+        // Worker-management artisan commands (need a running Folk process)
         if ($this->app->runningInConsole()) {
             $this->commands([
                 Console\ReloadCommand::class,
