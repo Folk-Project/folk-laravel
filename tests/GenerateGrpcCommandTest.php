@@ -53,4 +53,33 @@ final class GenerateGrpcCommandTest extends TestCase
     {
         $this->artisan('folk:grpc:generate')->assertFailed();
     }
+
+    public function test_generates_client_stub_from_config(): void
+    {
+        config()->set('folk.grpc.clients', [
+            'greeter' => [
+                'proto' => ['proto/hello.proto'],
+                'generated_dir' => $this->outDir,
+                'generated_namespace' => 'App\\Grpc\\Clients\\Greeter',
+            ],
+        ]);
+
+        $this->artisan('folk:grpc:generate', ['--client' => 'greeter'])->assertSuccessful();
+
+        $this->assertFileExists($this->outDir . '/GreeterClient.php');
+        // DTOs are emitted for the client role too.
+        $this->assertFileExists($this->outDir . '/HelloRequest.php');
+
+        $src = (string) file_get_contents($this->outDir . '/GreeterClient.php');
+        $this->assertStringContainsString('namespace App\\Grpc\\Clients\\Greeter;', $src);
+        $this->assertStringContainsString('extends GrpcClient', $src);
+        $this->assertStringContainsString("public const CLIENT = 'greeter';", $src);
+        $this->assertStringContainsString('public function SayHello(', $src);
+    }
+
+    public function test_unknown_client_fails(): void
+    {
+        config()->set('folk.grpc.clients', []);
+        $this->artisan('folk:grpc:generate', ['--client' => 'nope'])->assertFailed();
+    }
 }

@@ -25,6 +25,26 @@ return [
         // app_path('Grpc/Generated') with the App\Grpc\Generated namespace.
         'generated_dir' => null,
         'generated_namespace' => 'App\\Grpc\\Generated',
+
+        // --- gRPC clients: call upstream services (phase 88) ---
+        //
+        // Each entry names a `[grpc.clients.<name>]` upstream configured in
+        // folk.toml (address/tls/deadline/retries live there — the Rust plugin
+        // owns the transport). Here you point at the upstream's .proto contract so
+        // `php artisan folk:grpc:generate` can emit a typed `{Service}Client` stub.
+        //
+        // Call it with the generated stub:
+        //   $catalog = \Folk\Sdk\Folk::grpcClient(\App\Grpc\Clients\Catalog\CatalogClient::class);
+        //   $resp = $catalog->Search(new SearchRequest(query: 'phone'));
+        //
+        // Example:
+        // 'catalog' => [
+        //     'proto' => ['proto/clients/catalog.proto'],
+        //     // null = app_path('Grpc/Clients/Catalog'), App\Grpc\Clients\Catalog
+        //     'generated_dir' => null,
+        //     'generated_namespace' => 'App\\Grpc\\Clients\\Catalog',
+        // ],
+        'clients' => [],
     ],
 
     // Request body streaming.
