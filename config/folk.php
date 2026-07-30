@@ -15,34 +15,42 @@ return [
         // 'helloworld.Greeter' => App\Grpc\GreeterService::class,
         'services' => [],
 
-        // --- Code generation (php artisan folk:grpc:generate) ---
+        // --- Code generation: server contracts (php artisan folk:grpc:generate) ---
         //
-        // .proto files to generate DTOs/interfaces from. Also accepted as CLI
-        // arguments, which override this list.
-        'proto' => [],
+        // Generated DTOs/enums + `*Interface` land under `generated_namespace`.
+        // Placeholders (phase 90): `{package}` nests each class by its proto
+        // package (io.altessa.type.v1 → Io\Altessa\Type\V1) — cross-package field
+        // types reference each other by FQN. List entry-point *service* .proto
+        // files; their imports are compiled automatically. Positional CLI args
+        // override `proto`.
+        'server' => [
+            'proto' => [],
+            // Defaults (omit to use them):
+            //   generated_dir       => app_path('Grpc/Generated/Server')
+            //   generated_namespace => 'App\Grpc\Generated\Server\{package}'
+            'generated_dir' => null,
+            'generated_namespace' => null,
+        ],
 
-        // Where generated code is written, and its PHP namespace. null =
-        // app_path('Grpc/Generated') with the App\Grpc\Generated namespace.
-        'generated_dir' => null,
-        'generated_namespace' => 'App\\Grpc\\Generated',
-
-        // --- gRPC clients: call upstream services (phase 88) ---
+        // --- Code generation: gRPC clients (call upstream services, phase 88) ---
         //
-        // Each entry names a `[grpc.clients.<name>]` upstream configured in
-        // folk.toml (address/tls/deadline/retries live there — the Rust plugin
-        // owns the transport). Here you point at the upstream's .proto contract so
-        // `php artisan folk:grpc:generate` can emit a typed `{Service}Client` stub.
+        // Each entry names a `[grpc.clients.<name>]` upstream in folk.toml
+        // (address/tls/deadline/retries live there — the Rust plugin owns the
+        // transport). Point at the upstream's .proto so generation can emit a typed
+        // `{Service}Client` stub. Placeholders: `{client_name}` = this key,
+        // `{package}` as above.
         //
-        // Call it with the generated stub:
-        //   $catalog = \Folk\Sdk\Folk::grpcClient(\App\Grpc\Clients\Catalog\CatalogClient::class);
+        //   $catalog = \Folk\Sdk\Folk::grpcClient(\App\Grpc\Generated\Client\catalog\...\CatalogClient::class);
         //   $resp = $catalog->Search(new SearchRequest(query: 'phone'));
         //
         // Example:
         // 'catalog' => [
         //     'proto' => ['proto/clients/catalog.proto'],
-        //     // null = app_path('Grpc/Clients/Catalog'), App\Grpc\Clients\Catalog
+        //     // Defaults (omit to use them):
+        //     //   generated_dir       => app_path('Grpc/Generated/Client/{client_name}')
+        //     //   generated_namespace => 'App\Grpc\Generated\Client\{client_name}\{package}'
         //     'generated_dir' => null,
-        //     'generated_namespace' => 'App\\Grpc\\Clients\\Catalog',
+        //     'generated_namespace' => null,
         // ],
         'clients' => [],
     ],

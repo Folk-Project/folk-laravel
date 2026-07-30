@@ -4,7 +4,6 @@ namespace Folk\Laravel\Console;
 use Folk\Sdk\Grpc\Codegen\ProtoGen;
 use Folk\Sdk\Grpc\Codegen\ProtoGenerator;
 use Illuminate\Console\Command;
-use Illuminate\Support\Str;
 
 /**
  * `php artisan folk:grpc:generate` — generate readonly DTOs, int-backed enums,
@@ -39,18 +38,19 @@ final class GenerateGrpcCommand extends Command
 
         $protoArg = $this->argument('proto');
         $explicit = is_array($protoArg) && $protoArg !== [];
+        $server = $this->serverTarget();
         $serverProtos = $explicit
             ? array_values(array_map('strval', $protoArg))
-            : array_values(array_map('strval', (array) config('folk.grpc.proto', [])));
+            : $server['proto'];
         $clients = $this->clientConfigs();
 
         if ($serverProtos === [] && $clients === []) {
-            $this->error('Nothing to generate: pass .proto files, or set config folk.grpc.proto / folk.grpc.clients.');
+            $this->error('Nothing to generate: pass .proto files, or set config folk.grpc.server.proto / folk.grpc.clients.');
             return self::FAILURE;
         }
 
         $serverOk = $serverProtos === []
-            || $this->generateServer($serverProtos) === self::SUCCESS;
+            || $this->generateServer($serverProtos, $server) === self::SUCCESS;
         // Positional args mean "server only"; config-driven runs also do clients.
         $clientOk = $explicit || $clients === []
             || $this->generateClients(null, false) === self::SUCCESS;
@@ -59,19 +59,52 @@ final class GenerateGrpcCommand extends Command
     }
 
     /**
-     * @param list<string> $protos
+     * Resolve the server-role generation target (phase 90): the `folk.grpc.server`
+     * block, or the legacy flat `folk.grpc.proto` / `generated_dir` /
+     * `generated_namespace` keys (with a deprecation notice). Defaults place DTOs
+     * and interfaces under `App\Grpc\Generated\Server\{package}`.
+     *
+     * @return array{proto: list<string>, dir: string, namespace: string}
      */
-    private function generateServer(array $protos): int
+    private function serverTarget(): array
+    {
+        $new = config('folk.grpc.server');
+        $newProto = is_array($new)
+            ? array_values(array_map('strval', (array) ($new['proto'] ?? [])))
+            : [];
+
+        // Legacy flat config (phase 87/88) takes effect only when the new
+        // `folk.grpc.server` block has no proto and the legacy keys are set —
+        // otherwise existing projects keep their flat layout (with a nudge).
+        $legacyProto = array_values(array_map('strval', (array) config('folk.grpc.proto', [])));
+        if ($newProto === [] && ($legacyProto !== [] || config('folk.grpc.generated_dir') !== null)) {
+            $this->warn('folk:grpc:generate: config folk.grpc.proto/generated_dir/generated_namespace is deprecated; move it under folk.grpc.server (see docs). Using the flat legacy layout.');
+
+            return [
+                'proto' => $legacyProto,
+                'dir' => $this->stringConfig('folk.grpc.generated_dir', app_path('Grpc/Generated')),
+                'namespace' => $this->stringConfig('folk.grpc.generated_namespace', 'App\\Grpc\\Generated'),
+            ];
+        }
+
+        return [
+            'proto' => $newProto,
+            'dir' => $this->str(is_array($new) ? ($new['generated_dir'] ?? null) : null, app_path('Grpc/Generated/Server')),
+            'namespace' => $this->str(is_array($new) ? ($new['generated_namespace'] ?? null) : null, 'App\\Grpc\\Generated\\Server\\{package}'),
+        ];
+    }
+
+    /**
+     * @param list<string> $protos
+     * @param array{proto: list<string>, dir: string, namespace: string} $target
+     */
+    private function generateServer(array $protos, array $target): int
     {
         $outOpt = $this->option('out');
-        $out = is_string($outOpt) && $outOpt !== ''
-            ? $outOpt
-            : $this->stringConfig('folk.grpc.generated_dir', app_path('Grpc/Generated'));
+        $out = is_string($outOpt) && $outOpt !== '' ? $outOpt : $target['dir'];
 
         $nsOpt = $this->option('namespace');
-        $namespace = is_string($nsOpt) && $nsOpt !== ''
-            ? $nsOpt
-            : $this->stringConfig('folk.grpc.generated_namespace', 'App\\Grpc\\Generated');
+        $namespace = is_string($nsOpt) && $nsOpt !== '' ? $nsOpt : $target['namespace'];
 
         try {
             $written = ProtoGen::run($protos, $out, $namespace);
@@ -161,15 +194,14 @@ final class GenerateGrpcCommand extends Command
 
             $proto = array_values(array_map('strval', (array) ($cfg['proto'] ?? [])));
 
-            $dirRaw = $cfg['generated_dir'] ?? null;
-            $dir = is_string($dirRaw) && $dirRaw !== ''
-                ? $dirRaw
-                : app_path('Grpc/Clients/' . Str::studly($name));
-
-            $nsRaw = $cfg['generated_namespace'] ?? null;
-            $namespace = is_string($nsRaw) && $nsRaw !== ''
-                ? $nsRaw
-                : 'App\\Grpc\\Clients\\' . Str::studly($name);
+            // Phase 90 defaults: per-client tree with a `{package}` sub-namespace.
+            // `{client_name}` in the dir/namespace is expanded downstream (ProtoGen
+            // / ProtoGenerator) to this client's name.
+            $dir = $this->str($cfg['generated_dir'] ?? null, app_path('Grpc/Generated/Client/{client_name}'));
+            $namespace = $this->str(
+                $cfg['generated_namespace'] ?? null,
+                'App\\Grpc\\Generated\\Client\\{client_name}\\{package}',
+            );
 
             $out[$name] = ['proto' => $proto, 'dir' => $dir, 'namespace' => $namespace];
         }
@@ -180,6 +212,12 @@ final class GenerateGrpcCommand extends Command
     private function stringConfig(string $key, string $default): string
     {
         $value = config($key);
+        return is_string($value) && $value !== '' ? $value : $default;
+    }
+
+    /** A non-empty string value, or the default. */
+    private function str(mixed $value, string $default): string
+    {
         return is_string($value) && $value !== '' ? $value : $default;
     }
 }

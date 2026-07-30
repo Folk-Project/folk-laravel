@@ -25,10 +25,14 @@ final class GenerateGrpcCommandTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach (glob($this->outDir . '/*') ?: [] as $file) {
-            @unlink($file);
-        }
-        @rmdir($this->outDir);
+        // Recursive cleanup — phase-90 output can nest by package.
+        $rrm = static function (string $dir) use (&$rrm): void {
+            foreach (glob($dir . '/*') ?: [] as $path) {
+                is_dir($path) ? $rrm($path) : @unlink($path);
+            }
+            @rmdir($dir);
+        };
+        $rrm($this->outDir);
         parent::tearDown();
     }
 
@@ -52,6 +56,38 @@ final class GenerateGrpcCommandTest extends TestCase
     public function test_fails_without_proto_files(): void
     {
         $this->artisan('folk:grpc:generate')->assertFailed();
+    }
+
+    public function test_generates_server_from_config_block_with_package_layout(): void
+    {
+        // Phase 90: config-driven server generation with a {package} namespace →
+        // classes nest by proto package (folk.test.hello → Folk\Test\Hello).
+        config()->set('folk.grpc.server', [
+            'proto' => ['proto/hello.proto'],
+            'generated_dir' => $this->outDir,
+            'generated_namespace' => 'App\\Grpc\\Generated\\Server\\{package}',
+        ]);
+
+        $this->artisan('folk:grpc:generate')->assertSuccessful();
+
+        $nested = $this->outDir . '/Folk/Test/Hello/HelloRequest.php';
+        $this->assertFileExists($nested);
+        $src = (string) file_get_contents($nested);
+        $this->assertStringContainsString('namespace App\\Grpc\\Generated\\Server\\Folk\\Test\\Hello;', $src);
+    }
+
+    public function test_legacy_flat_config_still_generates(): void
+    {
+        // Phase 90 BC: the old flat folk.grpc.proto/generated_* keys still work.
+        config()->set('folk.grpc.proto', ['proto/hello.proto']);
+        config()->set('folk.grpc.generated_dir', $this->outDir);
+        config()->set('folk.grpc.generated_namespace', 'App\\Legacy\\Flat');
+
+        $this->artisan('folk:grpc:generate')->assertSuccessful();
+
+        $this->assertFileExists($this->outDir . '/HelloRequest.php', 'flat layout preserved');
+        $src = (string) file_get_contents($this->outDir . '/HelloRequest.php');
+        $this->assertStringContainsString('namespace App\\Legacy\\Flat;', $src);
     }
 
     public function test_generates_client_stub_from_config(): void
