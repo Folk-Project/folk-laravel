@@ -5,6 +5,7 @@
  */
 
 function folk_version(): string {}
+function folk_on_init(?string $config_path = null): void {}
 function folk_is_worker_thread(): bool {}
 function folk_call(string $method, string $payload): string {}
 function folk_request_id(): string {}

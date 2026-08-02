@@ -24,11 +24,22 @@ if (!file_exists($autoload)) {
 // root resolves correctly under both the bin-proxy and a direct/symlinked path.
 $autoload = realpath($autoload);
 
-require $autoload;
-
-// Ensure CWD is the project root before bootstrapping / forking.
+// Ensure CWD is the project root before on_init / bootstrapping / forking.
 $projectRoot = dirname($autoload, 2);
 chdir($projectRoot);
+
+// on_init lifecycle hooks (phase 97, folk-releases#93): run the [on_init] steps
+// from folk.toml BEFORE the framework is loaded, so commands like
+// `cp -n .env.example .env`, a `composer install` refresh, or `artisan migrate`
+// take effect before the app reads its environment or a listener is bound. With
+// exit_on_error = true (default) a failing step raises + exits non-zero, so a
+// broken environment never receives traffic. Skipped for the `grpc:descriptors`
+// codegen submode (string literal — the class isn't autoloaded yet here).
+if (($argv[1] ?? null) !== 'grpc:descriptors' && function_exists('folk_on_init')) {
+    folk_on_init($argv[1] ?? 'folk.toml');
+}
+
+require $autoload;
 
 // gRPC descriptor-export submode (phase 87): `folk-server grpc:descriptors <proto…>`
 // compiles proto → FileDescriptorSet on stdout and exits, WITHOUT booting the
