@@ -2,8 +2,6 @@
 
 Laravel adapter for Folk. Provides seamless integration -- all your routes, middleware, and controllers work without changes.
 
-**Version:** 0.2.0
-
 ## Installation
 
 ```bash
@@ -14,10 +12,10 @@ Auto-discovery registers `FolkServiceProvider`, which auto-registers `LaravelHtt
 
 ## Requirements
 
-- PHP 8.2+ (ZTS build)
+- PHP 8.2+ — a standard non-thread-safe (NTS) build; Folk forks worker processes, so no thread-safe PHP is needed
 - Laravel 11+
 - [folk/sdk](https://github.com/Folk-Project/folk-sdk)
-- `folk.so` extension
+- the `folk.so` extension (`pie install folk-project/ext-folk`)
 
 ## Setup
 
@@ -31,35 +29,22 @@ composer require folk/laravel
 
 ```toml
 [workers]
-script = "server.php"
+script = "vendor/bin/folk-server"
 count = 4
 
 [http]
 listen = "0.0.0.0:8080"
+public_dir = "public"   # serve built assets from disk; a miss falls through to Laravel
 ```
 
-3. Create `server.php` entry point:
-
-```php
-<?php
-require __DIR__ . '/vendor/autoload.php';
-
-$app = require __DIR__ . '/bootstrap/app.php';
-$app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
-
-$loop = new \Folk\Sdk\Worker\WorkerLoop();
-$loop->registerHttpHandler(
-    $app->make(\Folk\Laravel\Http\LaravelHttpHandler::class)
-);
-$loop->run();
-```
-
-4. Build and run:
+3. Run:
 
 ```bash
-folk-builder build
-./my-folk serve
+php vendor/bin/folk-server
 ```
+
+The entry point ships with this package (`bin/folk-server`) -- there is no worker
+script to write. Composer's bin-proxy (`vendor/bin/folk-server`) works as well.
 
 ## How it works
 
@@ -74,11 +59,22 @@ Between every request, built-in resetters clean up shared state:
 
 | Resetter | What it does |
 |----------|-------------|
-| `AuthResetter` | Forgets authenticated user |
+| `AuthResetter` | Forgets the authenticated user and all resolved guards |
+| `SessionResetter` | Drops the request's session instance |
 | `DatabaseResetter` | Rolls back open transactions |
 | `EventResetter` | Clears request-scoped listeners |
 | `QueueResetter` | Reconnects queue connections |
+| `ScopedResetter` | Forgets the container's `scoped` instances |
+| `InertiaResetter` | Clears Inertia's shared props |
+
+Register your own via `config/folk.php`:
+
+```php
+'resetters' => [
+    App\Folk\MyStateResetter::class, // implements Folk\Sdk\Reset\ResettableInterface
+],
+```
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
